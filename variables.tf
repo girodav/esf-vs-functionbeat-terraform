@@ -54,3 +54,7 @@ variable "source_s3_bucket" {
   type        = string
 }
 
+variable "source_sns_topic" {
+  description = "Source SNS topic"
+  type        = string
+}
