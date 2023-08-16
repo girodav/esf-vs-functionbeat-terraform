@@ -1,7 +1,6 @@
 # esf-vs-functionbeat-terraform
 
-This repo contains some sample Terraform module to automatically provision AWS resources to benchmark Elastic Serverless Forwarder and Functionbeat, using SQS inputs.
-The resulting infrastructure is described by the following diagram (Elastic Cloud instance is not created)
+This repository, contains sample Terraform code to automate the provisioning of AWS resources, offering a convenient way to benchmark the performance of both the Elastic Serverless Forwarder and Functionbeat. These resources are configured to utilize SQS inputs for the benchmarking process. The diagram provided illustrates the resulting infrastructure. Please keep in mind that the creation of Elastic Cloud deployments is not performed.
 
 ```mermaid
 flowchart LR
