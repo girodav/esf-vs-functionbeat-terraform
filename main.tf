@@ -7,7 +7,7 @@ locals {
   esf_config_file_content = yamlencode({
     inputs: [
       {
-        type: "s3-sqs"
+        type: "sqs"
         id: aws_sqs_queue.esf-queue.arn
         outputs: [
           {
@@ -24,30 +24,88 @@ locals {
   })
 }
 
-##### Elastic Serverless Forwarder
-# SAR Application definition, deployed through SAR. Ref: https://www.elastic.co/guide/en/esf/master/aws-deploy-elastic-serverless-forwarder.html#aws-serverless-forwarder-deploy-terraform
-data "aws_serverlessapplicationrepository_application" "esf_sar" {
-  application_id = var.esf_application_id
-  semantic_version = var.esf_semantic_version
+###### Elastic Serverless Forwarder
+data "external" "esf_lambda_loader" {
+  program = ["${path.module}/esf-loader.sh"]
+
+  query = {
+    version          = "lambda-v1.8.0"
+  }
 }
 
-resource "aws_serverlessapplicationrepository_cloudformation_stack" "esf_cf_stack" {
-  name             = var.esf-stack-name
-  application_id   = data.aws_serverlessapplicationrepository_application.esf_sar.application_id
-  semantic_version = data.aws_serverlessapplicationrepository_application.esf_sar.semantic_version
-  capabilities     = data.aws_serverlessapplicationrepository_application.esf_sar.required_capabilities
-parameters = {
-    ElasticServerlessForwarderS3ConfigFile = "s3://${aws_s3_bucket.esf-config-s3-bucket.bucket}/${aws_s3_object.esf-config-file-upload.key}"
-    ElasticServerlessForwarderSSMSecrets = ""
-    ElasticServerlessForwarderKMSKeys = ""
-    ElasticServerlessForwarderSQSEvents = ""
-    ElasticServerlessForwarderS3SQSEvents = aws_sqs_queue.esf-queue.arn
-    ElasticServerlessForwarderKinesisEvents = ""
-    ElasticServerlessForwarderCloudWatchLogsEvents = ""
-    ElasticServerlessForwarderS3Buckets = aws_s3_bucket.source-bucket.arn
-    ElasticServerlessForwarderSecurityGroups = ""
-    ElasticServerlessForwarderSubnets = ""
+module "esf-lambda-function" {
+  source = "terraform-aws-modules/lambda/aws"
+
+  function_name = var.esf-lambda-name
+  handler       = "main_aws.lambda_handler"
+  runtime       = "python3.9"
+  build_in_docker   = true
+  architectures       = ["x86_64"]
+  docker_pip_cache          = true
+  memory_size = var.memory_size
+  timeout = var.timeout
+  reserved_concurrent_executions = var.max_concurrency
+  docker_additional_options = ["--platform", "linux/amd64"]
+  source_path = data.external.esf_lambda_loader.result.package
+  environment_variables = {
+    S3_CONFIG_FILE: "s3://${aws_s3_bucket.esf-config-s3-bucket.bucket}/${aws_s3_object.esf-config-file-upload.key}"
+    SQS_CONTINUE_URL: aws_sqs_queue.esf-continuing-queue.url
+    SQS_REPLAY_URL: aws_sqs_queue.esf-replay-queue.url
+    LOG_LEVEL: var.log_level
   }
+
+  attach_policy_statements = true
+  policy_statements = {
+    s3_config = {
+      effect    = "Allow",
+      actions   = ["s3:GetObject"],
+      resources = ["arn:aws:s3:::${aws_s3_bucket.esf-config-s3-bucket.bucket}/${aws_s3_object.esf-config-file-upload.key}"]
+    },
+    sqs_send = {
+      effect    = "Allow",
+      actions   = ["sqs:SendMessage"],
+      resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn]
+    },
+    sqs_receive = {
+      effect    = "Allow",
+      actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+      resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn, aws_sqs_queue.esf-queue.arn]
+    },
+    ec2 = {
+      effect    = "Allow",
+      actions   = ["ec2:DescribeRegions"],
+      resources = ["*"]
+    }
+  }
+  depends_on = [
+    data.external.esf_lambda_loader
+  ]
+}
+
+resource "aws_lambda_event_source_mapping" "esf-source-sqs-event-mapping" {
+  event_source_arn = aws_sqs_queue.esf-queue.arn
+  function_name    = module.esf-lambda-function.lambda_function_arn
+  batch_size = var.sqs_batch_size
+  maximum_batching_window_in_seconds = var.sqs_batch_window
+}
+
+resource "aws_lambda_event_source_mapping" "esf-continuining-sqs-event-mapping" {
+  event_source_arn = aws_sqs_queue.esf-continuing-queue.arn
+  function_name    = module.esf-lambda-function.lambda_function_arn
+}
+
+resource "aws_sqs_queue" "esf-continuing-queue" {
+  name = "${var.esf-lambda-name}-continuining-queue"
+  delay_seconds = 0
+  sqs_managed_sse_enabled = true
+  visibility_timeout_seconds = 910
+}
+
+resource "aws_sqs_queue" "esf-replay-queue" {
+  name = "${var.esf-lambda-name}-replay-queue"
+  delay_seconds = 0
+  sqs_managed_sse_enabled = true
+  visibility_timeout_seconds = 910
 }
 
 # ESF S3 Bucket to store the YAML config
@@ -62,8 +120,8 @@ resource "aws_s3_object" "esf-config-file-upload" {
   key    = "elastic-serverless-forwarder.yaml"
   content = local.esf_config_file_content
 }
-
-##### Functionbeat
+#
+###### Functionbeat
 data "external" "lambda_loader" {
   program = ["${path.module}/functionbeat-loader.sh"]
 
@@ -110,8 +168,9 @@ resource "aws_lambda_function" "functionbeat_lambda_function" {
   source_code_hash = fileexists(data.external.lambda_loader.result.filename) ? filebase64sha256(data.external.lambda_loader.result.filename) : null
   handler          = "functionbeat-aws"
   runtime          = "go1.x"
-  timeout          = 900
-  memory_size = 512
+  timeout          = var.timeout
+  memory_size = var.memory_size
+  reserved_concurrent_executions = var.max_concurrency
 
   environment {
     variables = {
@@ -130,10 +189,12 @@ resource "aws_lambda_function" "functionbeat_lambda_function" {
 resource "aws_lambda_event_source_mapping" "functionbeat-sqs-event-mapping" {
   event_source_arn = aws_sqs_queue.functionbeat-queue.arn
   function_name    = aws_lambda_function.functionbeat_lambda_function.arn
+    batch_size = var.sqs_batch_size
+  maximum_batching_window_in_seconds = var.sqs_batch_window
 }
 
 
-#### Source S3 Bucket definition
+###### Source S3 Bucket definition
 resource "aws_s3_bucket" "source-bucket" {
   bucket = var.source_s3_bucket
   force_destroy = var.force_destroy //empty the bucket before deleting
@@ -148,7 +209,7 @@ resource "aws_s3_bucket_notification" "bucket_notification-esf" {
 }
 
 
-#### Source SQS queue for ESF
+##### Source SQS queue for ESF
 resource "aws_sqs_queue" "esf-queue" {
   name = var.esf-sqs-queue-name
   visibility_timeout_seconds = 900
@@ -214,7 +275,7 @@ resource "aws_sqs_queue_policy" "functionbeat-queue-policy" {
 resource "aws_sns_topic" "source-sns-topic" {
   name = var.source_sns_topic
 }
-
+#
 data "aws_iam_policy_document" "sns-policy-document" {
   statement {
     effect = "Allow"
@@ -234,12 +295,12 @@ data "aws_iam_policy_document" "sns-policy-document" {
     }
   }
 }
-
+#
 resource "aws_sns_topic_policy" "sns-policy" {
   arn       = aws_sns_topic.source-sns-topic.arn
   policy    = data.aws_iam_policy_document.sns-policy-document.json
 }
-
+#
 resource "aws_sns_topic_subscription" "esf-sns-to-sqs-subscription" {
   topic_arn = aws_sns_topic.source-sns-topic.arn
   protocol  = "sqs"

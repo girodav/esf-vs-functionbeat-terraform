@@ -28,7 +28,7 @@ variable "esf_semantic_version" {
   type        = string
 }
 
-variable "esf-stack-name" {
+variable "esf-lambda-name" {
   description = "ESF cloudformation stack name"
   type        = string
 }
@@ -81,11 +81,40 @@ variable "force_destroy" {
   type        = bool
 }
 
-# Generic variables
+# Shared Lambda settings
 variable "log_level" {
   description = "Log level for ESF and functionbeat"
   type        = string
   default = "DEBUG"
 }
 
+variable "memory_size" {
+  description = "Memory size for ESF and functionbeat"
+  type        = number
+  default = 5500
+}
+
+variable "timeout" {
+  description = "Lambda timeout for ESF and functionbeat"
+  type        = number
+  default = 900
+}
+
+variable "max_concurrency" {
+  description = "Maximum concurrency for ESF and functionbeat"
+  type        = number
+  default = 120
+}
+
+variable "sqs_batch_size" {
+  description = "SQS Batch Size for ESF and functionbeat"
+  type        = number
+  default = 500
+}
+
+variable "sqs_batch_window" {
+  description = "SQS Batch Window for ESF and functionbeat, in seconds"
+  type        = number
+  default = 60
+}
 

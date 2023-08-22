@@ -4,7 +4,6 @@ This repository contains sample Terraform code designed to automate the provisio
 
 ```mermaid
 flowchart LR
-    source_s3[Source S3 bucket] --> sns[SNS topic]
     sns[SNS topic] --> sqs_1[SQS queue]
     sns[SNS topic] --> sqs_2[SQS queue]
     sqs_1[SQS queue] --> lambda_1[Elastic Serverless Forwarder]
@@ -21,9 +20,10 @@ Since this module executes a script ensure your machine has the following softwa
 * curl
 * tar
 
-The module also expects that you have access to an [Elastic Cloud](https://www.elastic.co/cloud) deployment
+The module also expects that you have access to an [Elastic Cloud](https://www.elastic.co/cloud) deployment and that Docker is installed and running.
 
 ## How to use
 
+* Define secrets and variables in `*.auto.tfvars` files (See `variables.tf` for the list of variables declared)
 * Execute `terraform init`
 * Execute `terraform apply`
