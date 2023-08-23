@@ -2,6 +2,7 @@ provider "aws" {
   region = var.aws_region
 }
 
+###### Elastic Serverless Forwarder
 locals {
   # ESF YAML configuration content. Ref: https://www.elastic.co/guide/en/esf/master/aws-deploy-elastic-serverless-forwarder.html#sample-s3-config-file
   esf_config_file_content = yamlencode({
@@ -16,6 +17,8 @@ locals {
               cloud_id: var.cloud_id
               username: var.es_username
               password: var.es_password
+              batch_max_actions: var.esf-es-max-batch-actions
+              batch_max_bytes: var.esf-es-max-batch-bytes
             }
           }
         ]
@@ -24,7 +27,6 @@ locals {
   })
 }
 
-###### Elastic Serverless Forwarder
 data "external" "esf_lambda_loader" {
   program = ["${path.module}/esf-loader.sh"]
 
@@ -120,7 +122,7 @@ resource "aws_s3_object" "esf-config-file-upload" {
   key    = "elastic-serverless-forwarder.yaml"
   content = local.esf_config_file_content
 }
-#
+
 ###### Functionbeat
 data "external" "lambda_loader" {
   program = ["${path.module}/functionbeat-loader.sh"]
@@ -193,22 +195,6 @@ resource "aws_lambda_event_source_mapping" "functionbeat-sqs-event-mapping" {
   maximum_batching_window_in_seconds = var.sqs_batch_window
 }
 
-
-###### Source S3 Bucket definition
-resource "aws_s3_bucket" "source-bucket" {
-  bucket = var.source_s3_bucket
-  force_destroy = var.force_destroy //empty the bucket before deleting
-}
-
-resource "aws_s3_bucket_notification" "bucket_notification-esf" {
-  bucket = aws_s3_bucket.source-bucket.id
-  topic {
-    topic_arn = aws_sns_topic.source-sns-topic.arn
-    events    = ["s3:ObjectCreated:*"]
-  }
-}
-
-
 ##### Source SQS queue for ESF
 resource "aws_sqs_queue" "esf-queue" {
   name = var.esf-sqs-queue-name
@@ -275,32 +261,7 @@ resource "aws_sqs_queue_policy" "functionbeat-queue-policy" {
 resource "aws_sns_topic" "source-sns-topic" {
   name = var.source_sns_topic
 }
-#
-data "aws_iam_policy_document" "sns-policy-document" {
-  statement {
-    effect = "Allow"
 
-    principals {
-      type        = "Service"
-      identifiers = ["s3.amazonaws.com"]
-    }
-
-    actions   = ["SNS:Publish"]
-    resources = [aws_sns_topic.source-sns-topic.arn]
-
-    condition {
-      test     = "ArnLike"
-      variable = "aws:SourceArn"
-      values   = [aws_s3_bucket.source-bucket.arn]
-    }
-  }
-}
-#
-resource "aws_sns_topic_policy" "sns-policy" {
-  arn       = aws_sns_topic.source-sns-topic.arn
-  policy    = data.aws_iam_policy_document.sns-policy-document.json
-}
-#
 resource "aws_sns_topic_subscription" "esf-sns-to-sqs-subscription" {
   topic_arn = aws_sns_topic.source-sns-topic.arn
   protocol  = "sqs"

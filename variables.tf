@@ -18,18 +18,8 @@ variable "es_password" {
 }
 
 # ESF variables
-variable "esf_application_id" {
-  description = "ESF application id"
-  type        = string
-}
-
-variable "esf_semantic_version" {
-  description = "ESF semantic version"
-  type        = string
-}
-
 variable "esf-lambda-name" {
-  description = "ESF cloudformation stack name"
+  description = "ESF Lambda function name"
   type        = string
 }
 
@@ -41,6 +31,18 @@ variable "esf-config-bucket-name" {
 variable "esf-sqs-queue-name" {
   description = "ESF SQS queue name"
   type        = string
+}
+
+variable "esf-es-max-batch-actions" {
+  description = "ESF Elasticsearch Batch size"
+  type        = number
+  default = 500
+}
+
+variable "esf-es-max-batch-bytes" {
+  description = "ESF Elasticsearch Batch size"
+  type        = number
+  default = 10485760
 }
 
 # Functionbeat variables
@@ -60,11 +62,6 @@ variable "functionbeat_lambda_name" {
 }
 
 # Sources variables
-variable "source_s3_bucket" {
-  description = "Source S3 bucket"
-  type        = string
-}
-
 variable "source_sns_topic" {
   description = "Source SNS topic"
   type        = string
@@ -91,7 +88,7 @@ variable "log_level" {
 variable "memory_size" {
   description = "Memory size for ESF and functionbeat"
   type        = number
-  default = 5500
+  default = 512
 }
 
 variable "timeout" {
@@ -103,13 +100,13 @@ variable "timeout" {
 variable "max_concurrency" {
   description = "Maximum concurrency for ESF and functionbeat"
   type        = number
-  default = 120
+  default = 10
 }
 
 variable "sqs_batch_size" {
   description = "SQS Batch Size for ESF and functionbeat"
   type        = number
-  default = 500
+  default = 10
 }
 
 variable "sqs_batch_window" {
