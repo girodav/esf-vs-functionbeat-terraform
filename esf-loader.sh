@@ -6,7 +6,7 @@ eval "$(jq -r '@sh "VERSION=\(.version)"')"
 ROOT_FOLDER=$(pwd)
 CLONED_FOLDER="esf-repo-raw"
 PACKAGE_FOLDER="esf-package"
-GIT_REPO="https://github.com/elastic/elastic-serverless-forwarder.git"
+GIT_REPO="https://github.com/aspacca/elastic-serverless-forwarder.git"
 
 function download() {
   mkdir -v -p "${CLONED_FOLDER}"
