@@ -45,8 +45,9 @@ resource "aws_lambda_function" "functionbeat_lambda_function" {
   function_name                  = var.functionbeat_lambda_name
   filename                       = data.external.functionbeat_lambda_loader.result.filename
   source_code_hash               = fileexists(data.external.functionbeat_lambda_loader.result.filename) ? filebase64sha256(data.external.functionbeat_lambda_loader.result.filename) : null
-  handler                        = "functionbeat-aws"
-  runtime                        = "go1.x"
+  handler                        = "bootstrap"
+  runtime                        = "provided.al2"
+  architectures                  = ["arm64"]
   timeout                        = var.functionbeat-timeout
   memory_size                    = var.functionbeat-memory_size
   reserved_concurrent_executions = var.functionbeat-max_concurrency

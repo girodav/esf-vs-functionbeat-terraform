@@ -41,12 +41,12 @@ module "esf-lambda-function" {
   handler                        = "main_aws.lambda_handler"
   runtime                        = "python3.9"
   build_in_docker                = true
-  architectures                  = ["x86_64"]
+  architectures                  = ["arm64"]
   docker_pip_cache               = true
   memory_size                    = var.esf-memory_size
   timeout                        = var.esf-timeout
   reserved_concurrent_executions = var.esf-max_concurrency
-  docker_additional_options      = ["--platform", "linux/amd64"]
+  docker_additional_options      = ["--platform", "linux/arm64"]
   source_path                    = data.external.esf_lambda_loader.result.package
   environment_variables = {
     S3_CONFIG_FILE : "s3://${aws_s3_bucket.esf-config-s3-bucket.bucket}/${aws_s3_object.esf-config-file-upload.key}"

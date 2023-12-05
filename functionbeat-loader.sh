@@ -1,33 +1,43 @@
-#!/bin/sh
-# Reference https://github.com/PacoVK/terraform-aws-functionbeat
-set -uox pipefail
+#!/bin/bash
+
+set -uo pipefail
 
 eval "$(jq -er '@sh "VERSION=\(.version)
-                    ENABLED_FUNCTION=\(.enabled_function)
                     CONFIG_FILE=\(.config_file)"')"
 
-SYSTEM="$(uname | awk '{print tolower($0)}')"
-FUNCTION_BEAT_URL=https://artifacts.elastic.co/downloads/beats/functionbeat/functionbeat-"${VERSION}"-"${SYSTEM}"-x86_64.tar.gz
+CLONED_FOLDER="functionbeat-repo-raw"
+DESTINATION=functionbeat-"${VERSION}"
+GIT_REPO="https://github.com/aspacca/beats.git"
 
-DESTINATION=functionbeat-"${VERSION}"-"${SYSTEM}"-x86_64
+function download() {
+  git clone --depth 1 --branch "${VERSION}" "${GIT_REPO}" "${CLONED_FOLDER}"
+  mkdir -v -p "${DESTINATION}"
+  cp -f "${CONFIG_FILE}" "${DESTINATION}"/functionbeat.yml
+} &>/dev/null
 
-export BEAT_STRICT_PERMS=false
-export ENABLED_FUNCTION="${ENABLED_FUNCTION}"
+function create_package_zip() {
+  # shellcheck disable=SC2164
+  cd "${CLONED_FOLDER}"
+  go get -v -u ./...
+  go mod tidy
+  make mage
+  # shellcheck disable=SC2164
+  cd x-pack/functionbeat
+  mage build
+  # shellcheck disable=SC2164
+  cd provider/aws
+  cp functionbeat-aws ../../../../../"${DESTINATION}"/bootstrap
+  # shellcheck disable=SC2164
+  cd ../../../../../"${DESTINATION}"/
+  zip ../"${DESTINATION}"-release.zip bootstrap
+  zip ../"${DESTINATION}"-release.zip "${CONFIG_FILE}"
+  # shellcheck disable=SC2103
+  cd ..
+  rm -rf "${CLONED_FOLDER}"
+  rm -rf "${DESTINATION}"
+} &>/dev/null
 
-if [ ! -d "${DESTINATION}" ]; then
-  curl -s "${FUNCTION_BEAT_URL}" > "${DESTINATION}".tar.gz
-  tar xzvf "${DESTINATION}".tar.gz > /dev/null
-  rm -rf "${DESTINATION}".tar.gz
-fi
-
-cp -f "${CONFIG_FILE}" "${DESTINATION}"/functionbeat.yml
-
-# shellcheck disable=SC2164
-cd "${DESTINATION}"
-./functionbeat -v -e package --output ./../"${DESTINATION}-release".zip
-
-# shellcheck disable=SC2103
-cd ..
-rm -rf "${DESTINATION}"
+download
+create_package_zip
 
 jq -M -c -n --arg destination "${DESTINATION}-release.zip" '{"filename": $destination}'
