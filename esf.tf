@@ -6,7 +6,7 @@ locals {
       {
         type : "sqs"
         id : aws_sqs_queue.esf-queue.arn
-        json_content_type: "single"
+        json_content_type: "disabled"
         outputs : [
           {
             type : "elasticsearch"

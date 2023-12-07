@@ -17,22 +17,22 @@ function download() {
 
 function create_package_zip() {
   # shellcheck disable=SC2164
-  cd "${CLONED_FOLDER}"
+  pushd "${CLONED_FOLDER}"
   go get -v -u ./...
   go mod tidy
   make mage
   # shellcheck disable=SC2164
-  cd x-pack/functionbeat
+  pushd x-pack/functionbeat
   mage build
   # shellcheck disable=SC2164
-  cd provider/aws
+  pushd provider/aws
   cp functionbeat-aws ../../../../../"${DESTINATION}"/bootstrap
   # shellcheck disable=SC2164
-  cd ../../../../../"${DESTINATION}"/
+  pushd ../../../../../"${DESTINATION}"/
   zip ../"${DESTINATION}"-release.zip bootstrap
   zip ../"${DESTINATION}"-release.zip "${CONFIG_FILE}"
   # shellcheck disable=SC2103
-  cd ..
+  pushd ..
   rm -rf "${CLONED_FOLDER}"
   rm -rf "${DESTINATION}"
 } &>/dev/null
