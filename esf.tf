@@ -6,15 +6,16 @@ locals {
       {
         type : "sqs"
         id : aws_sqs_queue.esf-queue.arn
+        json_content_type: "disabled"
         outputs : [
           {
             type : "elasticsearch"
             args : {
-              cloud_id : var.cloud_id
-              username : var.es_username
-              password : var.es_password
+              cloud_id : var.esf-cloud_id
+              username : var.esf-es_username
+              password : var.esf-es_password
               es_datastream_name : "logs-fwdr.test-default"
-              batch_max_actions : var.es-max-batch-actions
+              batch_max_actions : var.bulk_max_size
               batch_max_bytes : var.esf-es-max-batch-bytes
             }
           }
@@ -28,7 +29,7 @@ data "external" "esf_lambda_loader" {
   program = ["${path.module}/esf-loader.sh"]
 
   query = {
-    version = "lambda-v1.8.0"
+    version = var.esf-version
   }
 }
 
@@ -40,12 +41,12 @@ module "esf-lambda-function" {
   handler                        = "main_aws.lambda_handler"
   runtime                        = "python3.9"
   build_in_docker                = true
-  architectures                  = ["x86_64"]
+  architectures                  = ["arm64"]
   docker_pip_cache               = true
-  memory_size                    = var.memory_size
-  timeout                        = var.timeout
-  reserved_concurrent_executions = var.max_concurrency
-  docker_additional_options      = ["--platform", "linux/amd64"]
+  memory_size                    = var.esf-memory_size
+  timeout                        = var.esf-timeout
+  reserved_concurrent_executions = var.esf-max_concurrency
+  docker_additional_options      = ["--platform", "linux/arm64"]
   source_path                    = data.external.esf_lambda_loader.result.package
   environment_variables = {
     S3_CONFIG_FILE : "s3://${aws_s3_bucket.esf-config-s3-bucket.bucket}/${aws_s3_object.esf-config-file-upload.key}"
@@ -81,7 +82,7 @@ module "esf-lambda-function" {
     data.external.esf_lambda_loader
   ]
 
-  use_existing_cloudwatch_log_group = true
+  use_existing_cloudwatch_log_group = false
 }
 
 resource "aws_lambda_event_source_mapping" "esf-source-sqs-event-mapping" {

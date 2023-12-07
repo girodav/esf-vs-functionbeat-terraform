@@ -13,10 +13,10 @@ resource "local_file" "functionbeat_config" {
   content = templatefile("${path.module}/functionbeat.yml.tftpl", {
     enabled_function_name = var.functionbeat_lambda_name
     source_sqs_queue_arn  = aws_sqs_queue.functionbeat-queue.arn
-    cloud_id              = var.cloud_id
-    es_username           = var.es_username
-    es_password           = var.es_password
-    bulk_max_size         = var.es-max-batch-actions
+    cloud_id              = var.functionbeat-cloud_id
+    es_username           = var.functionbeat-es_username
+    es_password           = var.functionbeat-es_password
+    bulk_max_size         = var.bulk_max_size
     log_level             = lower(var.log_level)
   })
   filename = "${path.module}/functionbeat.yml"
@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "functionbeat_assume_role" {
 }
 
 resource "aws_iam_role" "functionbeat_iam_for_lambda" {
-  name                = "functionbeat_iam_for_lambda"
+  name                = var.functionbeat_lambda_name
   assume_role_policy  = data.aws_iam_policy_document.functionbeat_assume_role.json
   managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"]
 }
@@ -45,11 +45,12 @@ resource "aws_lambda_function" "functionbeat_lambda_function" {
   function_name                  = var.functionbeat_lambda_name
   filename                       = data.external.functionbeat_lambda_loader.result.filename
   source_code_hash               = fileexists(data.external.functionbeat_lambda_loader.result.filename) ? filebase64sha256(data.external.functionbeat_lambda_loader.result.filename) : null
-  handler                        = "functionbeat-aws"
-  runtime                        = "go1.x"
-  timeout                        = var.timeout
-  memory_size                    = var.memory_size
-  reserved_concurrent_executions = var.max_concurrency
+  handler                        = "bootstrap"
+  runtime                        = "provided.al2"
+  architectures                  = ["arm64"]
+  timeout                        = var.functionbeat-timeout
+  memory_size                    = var.functionbeat-memory_size
+  reserved_concurrent_executions = var.functionbeat-max_concurrency
 
   environment {
     variables = {
