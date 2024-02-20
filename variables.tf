@@ -17,6 +17,18 @@ variable "es_password" {
   sensitive   = true
 }
 
+variable "sqs_esf_names" {
+  description = "List of AWS SQS names"
+  type    = list(string)
+  default = ["jackuksstr001", "jackuksstr002", "jackuksstr003"]
+}
+
+variable "sqs_functionbeat_names" {
+  description = "List of AWS SQS names"
+  type    = list(string)
+  default = ["jackuksstr001", "jackuksstr002", "jackuksstr003"]
+}
+
 # ESF variables
 variable "esf-lambda-name" {
   description = "ESF Lambda function name"

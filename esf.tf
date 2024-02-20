@@ -4,8 +4,11 @@ locals {
   esf_config_file_content = yamlencode({
     inputs : [
       {
+      for esf_queues in data.aws_sqs_queue.esf-queue:
+      esf_queues => {
+        for arns in esf_queues:
         type : "sqs"
-        id : aws_sqs_queue.esf-queue.arn
+        id : arns.arn
         outputs : [
           {
             type : "elasticsearch"
@@ -20,6 +23,7 @@ locals {
           }
         ]
       }
+      }
     ]
   })
 }
@@ -33,10 +37,11 @@ data "external" "esf_lambda_loader" {
 }
 
 module "esf-lambda-function" {
+  for_each = toset(data.aws_sqs_queue.esf-queue)
   source  = "terraform-aws-modules/lambda/aws"
   version = "6.0.0"
 
-  function_name                  = var.esf-lambda-name
+  function_name                  = join(var.esf-lambda-name, each.value.name)
   handler                        = "main_aws.lambda_handler"
   runtime                        = "python3.9"
   build_in_docker                = true
@@ -69,7 +74,7 @@ module "esf-lambda-function" {
     sqs_receive = {
       effect    = "Allow",
       actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
-      resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn, aws_sqs_queue.esf-queue.arn]
+      resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn, each.value.arn]
     },
     ec2 = {
       effect    = "Allow",
@@ -85,7 +90,8 @@ module "esf-lambda-function" {
 }
 
 resource "aws_lambda_event_source_mapping" "esf-source-sqs-event-mapping" {
-  event_source_arn                   = aws_sqs_queue.esf-queue.arn
+  for_each = toset(data.aws_sqs_queue.esf-queue.arn)
+  event_source_arn                   = each.value
   function_name                      = module.esf-lambda-function.lambda_function_arn
   batch_size                         = var.sqs_batch_size
   maximum_batching_window_in_seconds = var.sqs_batch_window

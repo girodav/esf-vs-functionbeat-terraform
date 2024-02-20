@@ -1,18 +1,20 @@
 ###### Functionbeat
 data "external" "functionbeat_lambda_loader" {
+  count                    = length(data.aws_sqs_queue.functionbeat-queue)
   program = ["${path.module}/functionbeat-loader.sh"]
 
   query = {
     version          = var.functionbeat_version
     config_file      = local_file.functionbeat_config.filename
-    enabled_function = var.functionbeat_lambda_name
+    enabled_function = join(var.functionbeat_lambda_name, count.index)
   }
 }
 
 resource "local_file" "functionbeat_config" {
   content = templatefile("${path.module}/functionbeat.yml.tftpl", {
+    for_each = toset (data.aws_sqs_queue.functionbeat-queue)
     enabled_function_name = var.functionbeat_lambda_name
-    source_sqs_queue_arn  = aws_sqs_queue.functionbeat-queue.arn
+    source_sqs_queue_arn  = each.value.arns
     cloud_id              = var.cloud_id
     es_username           = var.es_username
     es_password           = var.es_password
@@ -42,7 +44,8 @@ resource "aws_iam_role" "functionbeat_iam_for_lambda" {
 }
 
 resource "aws_lambda_function" "functionbeat_lambda_function" {
-  function_name                  = var.functionbeat_lambda_name
+  for_each = toset(data.aws_sqs_queue.functionbeat-queue)
+  function_name                  = join(var.functionbeat_lambda_name, each.value.name)
   filename                       = data.external.functionbeat_lambda_loader.result.filename
   source_code_hash               = fileexists(data.external.functionbeat_lambda_loader.result.filename) ? filebase64sha256(data.external.functionbeat_lambda_loader.result.filename) : null
   handler                        = "functionbeat-aws"
@@ -66,8 +69,9 @@ resource "aws_lambda_function" "functionbeat_lambda_function" {
 }
 
 resource "aws_lambda_event_source_mapping" "functionbeat-sqs-event-mapping" {
-  event_source_arn                   = aws_sqs_queue.functionbeat-queue.arn
-  function_name                      = aws_lambda_function.functionbeat_lambda_function.arn
+  for_each = toset(data.aws_sqs_queue.functionbeat-queue)
+  event_source_arn                   = each.value
+  function_name                      = join(var.functionbeat_lambda_name, each.value.name)
   batch_size                         = var.sqs_batch_size
   maximum_batching_window_in_seconds = var.sqs_batch_window
   enabled                            = var.functionbeat_enabled
