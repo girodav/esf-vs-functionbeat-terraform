@@ -5,8 +5,6 @@ data "aws_sqs_queue" "esf-queue" {
 
 
 locals {
-  list_names = toset(var.s3_esf_names)
-
   list_s3_names = join(", ", [for s3names in var.s3_esf_names : format("arn:aws:s3:::%s", s3names)])
   get_s3_names = join(", ", [for s3names in var.s3_esf_names : format("arn:aws:s3:::%s/*", s3names)])
 
