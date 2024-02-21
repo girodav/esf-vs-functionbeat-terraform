@@ -17,6 +17,30 @@ variable "es_password" {
   sensitive   = true
 }
 
+variable "sqs_esf_names" {
+  description = "List of AWS SQS names"
+  type    = list(string)
+  default = ["jackuksstr001", "jackuksstr002", "jackuksstr003"]
+}
+
+variable "sqs_esf_arns" {
+  description = "List of AWS SQS names"
+  type    = list(string)
+  default = ["123456", "123456", "123456"]
+}
+
+variable "cloudwatchlogs_esf_names"{
+  description = "List of AWS Cloudwatch names"
+  type    = list(string)
+  default = ["123456", "123456", "123456"]
+}
+
+variable "s3_esf_names"{
+  description = "List of AWS S3 names"
+  type    = list(string)
+  default = ["123456", "123456", "123456"]
+}
+
 # ESF variables
 variable "esf-lambda-name" {
   description = "ESF Lambda function name"
@@ -51,33 +75,6 @@ variable "esf_enabled" {
   default     = true
 }
 
-# Functionbeat variables
-variable "functionbeat-sqs-queue-name" {
-  description = "Functionbeat SQS queue name"
-  type        = string
-}
-
-variable "functionbeat_version" {
-  description = "Funtionbeat version to deploy"
-  type        = string
-}
-
-variable "functionbeat_lambda_name" {
-  description = "Funtionbeat Lambda function name"
-  type        = string
-}
-
-variable "functionbeat_enabled" {
-  description = "Enables/Disables the SQS event trigger for Functionbeat"
-  type        = bool
-  default     = true
-}
-
-# Sources variables
-variable "source_sns_topic" {
-  description = "Source SNS topic"
-  type        = string
-}
 
 # Generic variables
 variable "aws_region" {
