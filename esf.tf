@@ -45,7 +45,6 @@ locals {
     
     policy_statements = merge( local.policy_statements1 , var.cloudwatchlogs_esf_names != null ? {
     ec2 = {
-      for_each = var.cloudwatchlogs_esf_names
       effect    = "Allow",
       actions   = ["ec2:DescribeRegions"],
       resources = ["*"]
@@ -123,8 +122,8 @@ module "esf-lambda-function" {
 }
 
 resource "aws_lambda_event_source_mapping" "esf-source-sqs-event-mapping" {
-  for_each = toset(data.aws_sqs_queue.esf-queue)
-  event_source_arn                   = each.value.arn
+  for_each = length(var.sqs_esf_arns) ==0 ? toset(data.aws_sqs_queue.esf-queue) : toset(var.sqs_esf_arns)
+  event_source_arn                   = length(var.sqs_esf_arns) ==0 ? each.value.arn : each.value 
   function_name                      = module.esf-lambda-function.lambda_function_arn
   batch_size                         = var.sqs_batch_size
   maximum_batching_window_in_seconds = var.sqs_batch_window
